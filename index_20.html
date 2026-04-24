@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ECG Acquisition & Display System | ECE 480 Group 23</title>
+  <style>
+    /* ── RESET & BASE ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      font-size: 15px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── TOPBAR ─── */
+    .bar {
+      background: #18453b;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.72rem;
+      font-weight: 500;
+      text-align: center;
+      padding: 0.45rem 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── NAV ─── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #ffffff;
+      border-bottom: 2px solid #c8102e;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .nav-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .nav-logo { display:flex; align-items:center; gap:0.5rem; text-decoration:none; flex-shrink:0; }
+    .nav-logo-pulse { width:8px; height:8px; border-radius:50%; background:#c8102e; }
+    .nav-logo-text { font-size:0.82rem; font-weight:600; color:#1a1a1a; }
+    .nav-logo-text span { color:#888; font-weight:400; }
+    .nav-spacer { flex:1; }
+    .nav-tabs { display:flex; list-style:none; gap:0; }
+    .nav-tabs a {
+      display:block;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #555;
+      text-decoration: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-tabs a:hover { background:#f5f5f5; color:#1a1a1a; }
+    .nav-tabs a.active { background:#fdf0f2; color:#c8102e; font-weight:600; }
+
+    /* ── HERO ─── */
+    .hero {
+      background: #fafafa;
+      border-bottom: 1px solid #e5e5e5;
+      padding: 2.5rem 1.5rem;
+    }
+    .hero-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2.5rem;
+      align-items: center;
+    }
+    .hero-kicker {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #c8102e;
+      margin-bottom: 0.6rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 em { font-style:normal; color:#c8102e; }
+    .hero-body {
+      font-size: 0.9rem;
+      color: #555;
+      line-height: 1.7;
+      max-width: 520px;
+    }
+    /* removed hero pills */
+    .hero-pills { display:none; }
+
+    /* SPONSOR CARDS */
+    .hero-side { display:flex; flex-direction:column; gap:0.75rem; }
+    .sponsor-card {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 0.9rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      min-width: 200px;
+    }
+    .sponsor-icon {
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-weight: 700; font-size: 0.8rem;
+      overflow: hidden;
+    }
+    .sponsor-icon.msu { background:#f0f7f5; border:1px solid #c5ddd9; color:#18453b; }
+    .sponsor-icon.ti  { background:#fdf0f2; border:1px solid #f0c0c8; }
+    .sponsor-info-label { font-size:0.62rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#aaa; margin-bottom:0.1rem; }
+    .sponsor-info-name  { font-size:0.82rem; font-weight:600; color:#1a1a1a; }
+    /* hide ECG card */
+    .ecg-card { display:none; }
+
+    /* ── PAGE WRAPPER ─── */
+    section { display:none; }
+    section.active { display:block; }
+    .page { max-width:1000px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+
+    /* Section headings */
+    .pg-kicker {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #c8102e;
+      margin-bottom: 0.3rem;
+    }
+    .pg-title {
+      font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .pg-lead {
+      font-size: 0.9rem;
+      color: #666;
+      max-width: 580px;
+      line-height: 1.7;
+      margin-bottom: 2rem;
+    }
+    hr.rule { border:none; border-top:1px solid #e5e5e5; margin:2.5rem 0; }
+
+    /* ── HOME ─── */
+    .stats-band {
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+    .stat-cell {
+      padding: 1.4rem 1.2rem;
+      border-right: 1px solid #e5e5e5;
+      background: #fafafa;
+    }
+    .stat-cell:last-child { border-right:none; }
+    .stat-num { font-size: 1.5rem; font-weight:700; color:#1a1a1a; margin-bottom:0.2rem; }
+    .stat-num em { font-style:normal; color:#c8102e; }
+    .stat-desc { font-size:0.75rem; color:#888; }
+
+    .feature-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:2rem; }
+    .feature-card {
+      border:1px solid #e5e5e5;
+      border-radius:8px;
+      padding:1.3rem;
+      background:#fff;
+      transition: border-color 0.15s;
+    }
+    .feature-card:hover { border-color:#c8102e; }
+    .fc-icon { font-size:1.3rem; margin-bottom:0.5rem; }
+    .fc-label { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#c8102e; margin-bottom:0.3rem; }
+    .fc-title { font-size:0.9rem; font-weight:600; color:#1a1a1a; margin-bottom:0.35rem; }
+    .fc-body  { font-size:0.845rem; color:#666; line-height:1.65; }
+    /* remove left border animation */
+    .feature-card::before { display:none; }
+
+    .chain {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 1.5rem 1.8rem;
+    }
+    .chain-label { font-size:0.62rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:rgba(255,255,255,0.35); margin-bottom:1rem; }
+    .chain-nodes { display:flex; align-items:center; flex-wrap:wrap; gap:0; }
+    .chain-node { display:flex; flex-direction:column; align-items:center; gap:0.3rem; }
+    .cn-box {
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:6px;
+      padding:0.4rem 0.8rem;
+      font-size:0.7rem; font-weight:600;
+      color:rgba(255,255,255,0.85);
+      white-space:nowrap;
+    }
+    .cn-box:hover { background:#c8102e; border-color:#c8102e; }
+    .cn-sub { font-size:0.6rem; color:rgba(255,255,255,0.3); text-align:center; max-width:80px; }
+    .chain-arrow { font-size:0.8rem; color:rgba(255,255,255,0.2); padding:0 0.35rem; margin-bottom:1.3rem; }
+
+    /* ── PROJECT ─── */
+    .timeline { display:flex; flex-direction:column; }
+    .tl-item { display:grid; grid-template-columns:80px 1px 1fr; gap:0 1.5rem; padding-bottom:2.2rem; }
+    .tl-item:last-child { padding-bottom:0; }
+    .tl-left { text-align:right; padding-top:0.1rem; }
+    .tl-phase { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#c8102e; line-height:1.3; }
+    .tl-connector { position:relative; display:flex; flex-direction:column; align-items:center; }
+    .tl-dot { width:10px; height:10px; border-radius:50%; background:#c8102e; border:2px solid white; outline:2px solid #c8102e; flex-shrink:0; margin-top:0.15rem; z-index:1; }
+    .tl-line { flex:1; width:1px; background:#e5e5e5; margin-top:4px; }
+    .tl-item:last-child .tl-line { display:none; }
+    .tl-heading { font-size:0.92rem; font-weight:600; color:#1a1a1a; margin-bottom:0.35rem; }
+    .tl-body { font-size:0.845rem; color:#666; line-height:1.68; }
+
+    .ch-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .ch-card { border:1px solid #e5e5e5; border-radius:8px; padding:1.3rem; background:#fff; transition:border-color 0.15s; }
+    .ch-card:hover { border-color:#c8102e; }
+    .ch-badge { display:inline-block; font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:#f5f5f5; color:#666; border-radius:100px; padding:0.15rem 0.55rem; margin-bottom:0.5rem; }
+    .ch-badge.fw { background:#fdf0f2; color:#c8102e; }
+    .ch-title { font-size:0.875rem; font-weight:600; color:#1a1a1a; margin-bottom:0.35rem; }
+    .ch-body  { font-size:0.83rem; color:#666; line-height:1.65; }
+
+    /* ── HOW TO USE ─── */
+    .howto-banner {
+      background: #18453b;
+      border-radius: 8px;
+      padding: 1.8rem 2rem;
+      margin-bottom: 1.8rem;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .howto-banner-icon { font-size:2.2rem; flex-shrink:0; opacity:0.85; }
+    .howto-banner h2 { font-size:1.15rem; font-weight:700; margin-bottom:0.3rem; }
+    .howto-banner p  { font-size:0.855rem; opacity:0.75; line-height:1.6; max-width:500px; }
+
+    .callout { border-radius:6px; padding:0.85rem 1.2rem; font-size:0.845rem; line-height:1.6; margin-bottom:1.2rem; display:flex; gap:0.7rem; align-items:flex-start; }
+    .callout.warn { background:#fffbee; border:1px solid #dbb74a; color:#5a4200; }
+    .callout.tip  { background:#f0faf5; border:1px solid #4aab78; color:#1a4430; }
+    .callout.info { background:#fdf0f2; border:1px solid rgba(200,16,46,0.25); color:#7a0018; font-size:0.78rem; }
+    .callout-icon { font-size:1rem; flex-shrink:0; line-height:1.5; }
+
+    .mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.8rem; }
+    .mode-card { border:1px solid #e5e5e5; border-radius:8px; padding:1.2rem 1.3rem; background:#fff; }
+    .mode-card.live { border-top:3px solid #c8102e; }
+    .mode-card.sim  { border-top:3px solid #999; }
+    .mode-title { font-size:0.875rem; font-weight:600; color:#1a1a1a; margin-bottom:0.35rem; }
+    .mode-body  { font-size:0.835rem; color:#666; line-height:1.65; }
+
+    /* How to use steps */
+    .htu-step {
+      border:1px solid #e5e5e5;
+      border-radius:8px;
+      overflow:hidden;
+      margin-bottom:1.2rem;
+      background:#fff;
+    }
+    .htu-step-header {
+      display:flex; gap:1rem; align-items:flex-start;
+      padding:1.2rem 1.5rem;
+      border-bottom:1px solid #e5e5e5;
+    }
+    .htu-num { font-size:1.5rem; font-weight:700; color:#c8102e; opacity:0.45; line-height:1; min-width:2.2rem; padding-top:0.05rem; }
+    .htu-title { font-size:0.9rem; font-weight:600; color:#1a1a1a; margin-bottom:0.3rem; }
+    .htu-desc  { font-size:0.845rem; color:#555; line-height:1.7; }
+    .htu-img-wrap { background:#f5f5f5; display:flex; align-items:center; justify-content:center; max-height:400px; overflow:hidden; }
+    .htu-img-wrap img { width:100%; max-height:400px; object-fit:contain; display:block; padding:0.75rem; }
+    .htu-color-guide {
+      display:flex; gap:1.5rem; flex-wrap:wrap;
+      padding:0.75rem 1.5rem;
+      background:#fafafa;
+      border-bottom:1px solid #e5e5e5;
+    }
+    .htu-color-item { display:flex; align-items:center; gap:0.45rem; font-size:0.835rem; color:#333; }
+    .htu-color-dot  { width:12px; height:12px; border-radius:50%; flex-shrink:0; border:1px solid rgba(0,0,0,0.12); }
+
+    .htu-nav-section { border:1px solid #e5e5e5; border-radius:8px; padding:1.5rem; margin-bottom:1.2rem; background:#fff; }
+    .htu-nav-grid    { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .htu-nav-card    { border:1px solid #e5e5e5; border-radius:6px; padding:1.1rem; background:#fafafa; }
+    .htu-nav-card.htu-nav-live { border-top:2px solid #3b82f6; }
+    .htu-nav-card.htu-nav-sim  { border-top:2px solid #c8102e; }
+    .htu-nav-label { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#888; margin-bottom:0.8rem; }
+    .htu-nav-flow  { display:flex; flex-wrap:wrap; align-items:center; gap:0.35rem; }
+    .htu-nav-node  { font-size:0.7rem; font-weight:600; padding:0.28rem 0.6rem; border-radius:5px; background:#fff; border:1px solid #e5e5e5; color:#444; white-space:nowrap; }
+    .htu-node-blue { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+    .htu-node-red  { background:#fdf0f2; border-color:rgba(200,16,46,0.2); color:#c8102e; }
+    .htu-nav-arrow { font-size:0.65rem; color:#bbb; white-space:nowrap; }
+
+    /* ── GALLERY ─── */
+    .gallery-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+    .gal-card { border:1px solid #e5e5e5; border-radius:8px; overflow:hidden; background:#fff; transition:box-shadow 0.15s; }
+    .gal-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.08); }
+    .gal-img { width:100%; aspect-ratio:4/3; background:#f5f5f5; display:flex; align-items:center; justify-content:center; gap:0.4rem; flex-direction:column; overflow:hidden; }
+    .gal-img img { width:100%; height:100%; object-fit:cover; display:block; }
+    .gal-ph-icon { font-size:1.8rem; opacity:0.2; }
+    .gal-ph-txt  { font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#bbb; }
+    .gal-cap   { padding:0.8rem 1rem; border-top:1px solid #e5e5e5; }
+    .gal-title { font-size:0.8rem; font-weight:600; color:#1a1a1a; margin-bottom:0.15rem; }
+    .gal-desc  { font-size:0.75rem; color:#888; line-height:1.5; }
+
+    /* ── DOCUMENTS ─── */
+    .doc-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:2rem; }
+    .doc-card {
+      display:flex; gap:0.9rem; align-items:flex-start;
+      border:1px solid #e5e5e5; border-radius:8px;
+      padding:1.2rem; background:#fff;
+      text-decoration:none; color:inherit;
+      transition:border-color 0.15s;
+    }
+    .doc-card:hover { border-color:#c8102e; }
+    .doc-thumb { width:40px; height:48px; border-radius:5px; background:#f5f5f5; border:1px solid #e5e5e5; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+    .doc-type { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#c8102e; margin-bottom:0.2rem; }
+    .doc-name { font-size:0.85rem; font-weight:600; color:#1a1a1a; margin-bottom:0.25rem; }
+    .doc-desc { font-size:0.78rem; color:#888; line-height:1.5; }
+
+    .appnote-row-label { font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#aaa; border-bottom:1px solid #e5e5e5; padding-bottom:0.5rem; margin-bottom:1rem; }
+    .appnote-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:0.75rem; }
+    .an-card { border:1px solid #e5e5e5; border-radius:8px; padding:1rem 0.8rem; text-align:center; background:#fff; text-decoration:none; color:inherit; transition:border-color 0.15s; display:block; }
+    .an-card:hover { border-color:#c8102e; }
+    .an-av   { width:38px; height:38px; border-radius:50%; background:#f5f5f5; border:1px solid #e5e5e5; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; color:#555; margin:0 auto 0.5rem; }
+    .an-name { font-size:0.72rem; font-weight:600; color:#1a1a1a; margin-bottom:0.15rem; }
+    .an-role { font-size:0.68rem; color:#888; line-height:1.4; }
+
+    /* ── TEAM ─── */
+    .team-photo-card { border:1px solid #e5e5e5; border-radius:8px; overflow:hidden; margin-bottom:2rem; }
+    .team-photo-area { width:100%; aspect-ratio:21/8; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem; border-bottom:1px solid #e5e5e5; }
+    .team-photo-area img { width:100%; height:100%; object-fit:cover; display:block; }
+    .tph-icon { font-size:2rem; opacity:0.18; }
+    .tph-txt  { font-size:0.65rem; font-weight:500; color:#bbb; text-transform:uppercase; letter-spacing:0.06em; }
+    .team-photo-caption { padding:0.9rem 1.3rem; background:#fafafa; display:flex; align-items:center; justify-content:space-between; }
+    .tpc-title { font-size:0.82rem; font-weight:600; color:#1a1a1a; }
+    .tpc-sub   { font-size:0.75rem; color:#888; }
+
+    .team-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:1rem; margin-bottom:2rem; }
+    .team-card { border:1px solid #e5e5e5; border-radius:8px; padding:1.3rem 0.9rem; text-align:center; background:#fff; transition:border-color 0.15s; }
+    .team-card:hover { border-color:#c8102e; }
+    .team-av { width:48px; height:48px; border-radius:50%; background:#f5f5f5; border:1px solid #e5e5e5; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700; color:#555; margin:0 auto 0.7rem; }
+    .t-name  { font-size:0.8rem; font-weight:600; color:#1a1a1a; margin-bottom:0.2rem; line-height:1.3; }
+    .t-role  { font-size:0.72rem; color:#888; margin-bottom:0.5rem; line-height:1.4; }
+    .t-email { font-size:0.65rem; font-weight:500; color:#c8102e; text-decoration:none; word-break:break-all; }
+    .t-email:hover { text-decoration:underline; }
+
+    .support-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; }
+    .sup-card    { border:1px solid #e5e5e5; border-radius:8px; padding:1.3rem; background:#fff; }
+    .sup-kicker  { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#c8102e; margin-bottom:0.8rem; padding-bottom:0.5rem; border-bottom:1px solid #e5e5e5; }
+    .sup-person  { margin-bottom:0.9rem; }
+    .sup-person:last-of-type { margin-bottom:0; }
+    .sup-name  { font-size:0.83rem; font-weight:600; color:#1a1a1a; }
+    .sup-title { font-size:0.75rem; color:#888; }
+    .sup-email { font-size:0.72rem; font-weight:500; color:#c8102e; text-decoration:none; }
+    .sup-email:hover { text-decoration:underline; }
+    .sup-note  { font-size:0.78rem; color:#888; line-height:1.6; }
+
+    /* ── FOOTER ─── */
+    footer { background:#1a1a1a; color:rgba(255,255,255,0.45); }
+    .foot-wrap { max-width:1000px; margin:0 auto; padding:2rem 1.5rem 1.5rem; }
+    .foot-top  { display:flex; align-items:flex-start; justify-content:space-between; gap:2rem; padding-bottom:1.5rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:1rem; }
+    .foot-brand { font-size:0.88rem; font-weight:600; color:rgba(255,255,255,0.7); margin-bottom:0.3rem; }
+    .foot-sub   { font-size:0.75rem; line-height:1.6; }
+    .foot-badges { display:flex; gap:0.6rem; align-items:center; }
+    .foot-badge  { padding:0.4rem 0.8rem; border:1px solid rgba(255,255,255,0.1); border-radius:5px; font-size:0.65rem; font-weight:600; }
+    .foot-badge.msu { color:#6ddfa8; border-color:rgba(109,223,168,0.2); }
+    .foot-badge.ti  { color:#ff9999; border-color:rgba(255,153,153,0.2); }
+    .foot-bottom { font-size:0.7rem; }
+
+    /* ── RESPONSIVE ─── */
+    @media (max-width:820px) {
+      .hero-inner { grid-template-columns:1fr; }
+      .hero-side  { flex-direction:row; flex-wrap:wrap; }
+      .stats-band { grid-template-columns:1fr 1fr; }
+      .stat-cell:nth-child(2) { border-right:none; }
+      .stat-cell:nth-child(3),
+      .stat-cell:nth-child(4) { border-top:1px solid #e5e5e5; }
+      .stat-cell:nth-child(4) { border-right:none; }
+      .feature-grid,.ch-grid,.doc-grid,.mode-grid,.support-row { grid-template-columns:1fr; }
+      .team-grid  { grid-template-columns:1fr 1fr; }
+      .appnote-grid { grid-template-columns:repeat(3,1fr); }
+      .gallery-grid { grid-template-columns:1fr 1fr; }
+      .tl-item { grid-template-columns:60px 1px 1fr; gap:0 1rem; }
+      .foot-top { flex-direction:column; }
+      nav { padding:0; }
+      .nav-tabs a { padding:0.38rem 0.6rem; font-size:0.7rem; }
+    }
+    @media (max-width:520px) {
+      .team-grid,.appnote-grid,.gallery-grid { grid-template-columns:1fr; }
+      .htu-nav-grid { grid-template-columns:1fr; }
+      .howto-banner { flex-direction:column; gap:0.8rem; padding:1.4rem; }
+    }
+
+    section.active { animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+    @keyframes pulse { 0%,100% { transform:scale(1); opacity:0.4; } 50% { transform:scale(1.5); opacity:0; } }
+    .nav-logo-pulse::after { content:''; position:absolute; inset:-3px; border-radius:50%; border:1.5px solid #c8102e; opacity:0.4; animation:pulse 2.5s ease-in-out infinite; }
+    .nav-logo-pulse { position:relative; }
+</style>
+</head>
+<body>
+
+<div class="bar">ECE 480 Senior Design &nbsp;·&nbsp; Group 23 &nbsp;·&nbsp; Michigan State University &nbsp;·&nbsp; Spring 2026</div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" onclick="showTab('home');return false;" href="#">
+      <div class="nav-logo-pulse"></div>
+      <div class="nav-logo-text">ECG Acquisition &amp; Display <span>/ Group 23</span></div>
+    </a>
+    <div class="nav-spacer"></div>
+    <ul class="nav-tabs">
+      <li><a onclick="showTab('home')" id="nav-home" class="active">Home</a></li>
+      <li><a onclick="showTab('project')" id="nav-project">Project</a></li>
+      <li><a onclick="showTab('howto')" id="nav-howto">How to Use</a></li>
+      <li><a onclick="showTab('gallery')" id="nav-gallery">Gallery</a></li>
+      <li><a onclick="showTab('documents')" id="nav-documents">Documents</a></li>
+      <li><a onclick="showTab('team')" id="nav-team">Team</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg-grid"></div>
+  <div class="hero-bg-fade"></div>
+  <div class="hero-inner">
+    <div>
+      <div class="hero-kicker">ECE 480 &nbsp;·&nbsp; Spring 2026 &nbsp;·&nbsp; Group 23</div>
+      <h1>ECG Signal <em>Acquisition</em><br>& Display System</h1>
+      <p class="hero-body">A compact, portable platform that captures real ECG signals, conditions them through a custom analog front end, and displays live waveforms on a touch LCD. Designed for Texas Instruments to demonstrate the INA351 instrumentation amplifier.</p>
+    </div>
+    <div class="hero-side">
+      <div class="sponsor-card">
+        <div class="sponsor-icon msu" style="width:56px;height:56px;padding:4px;background:white;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
+            <img src="https://drive.google.com/thumbnail?id=12PIyNS9JMvBYNOqoW9aHlrDaEawJC_6h&sz=w120" alt="MSU Logo" style="width:100%;height:100%;object-fit:contain;display:block;"/>
+          </div>
+        <div>
+          <div class="sponsor-info-label">University</div>
+          <div class="sponsor-info-name">Michigan State University</div>
+        </div>
+      </div>
+      <div class="sponsor-card">
+        <div class="sponsor-icon ti" style="width:56px;height:56px;padding:4px;background:white;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
+            <img src="https://drive.google.com/thumbnail?id=15K8DlvLpKVfrkddYtAHHg1gZgeHY4BDS&sz=w120" alt="TI Logo" style="width:100%;height:100%;object-fit:contain;display:block;"/>
+          </div>
+        <div>
+          <div class="sponsor-info-label">Project Sponsor</div>
+          <div class="sponsor-info-name">Texas Instruments</div>
+        </div>
+      </div>
+          </div>
+  </div>
+</div>
+
+<!-- ═══ HOME ═══ -->
+<section id="tab-home" class="active">
+  <div class="page">
+    <div class="pg-kicker">Overview</div>
+    <h2 class="pg-title">What we built</h2>
+    <p class="pg-lead">A standalone ECG system that captures faint heart signals (~0.5–5 mV), amplifies and filters them, and renders the waveform live on a touch LCD, all on a single portable PCB powered by a USB power bank.</p>
+
+    <div class="stats-band">
+      <div class="stat-cell"><div class="stat-num">~1000<em>×</em></div><div class="stat-desc">Total signal gain</div></div>
+      <div class="stat-cell"><div class="stat-num">0.6–<em>33</em> Hz</div><div class="stat-desc">Signal passband</div></div>
+      <div class="stat-cell"><div class="stat-num">250 <em>Hz</em></div><div class="stat-desc">Sampling rate</div></div>
+      <div class="stat-cell"><div class="stat-num">$<em>74</em></div><div class="stat-desc">Final system cost</div></div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card"><div class="fc-icon">❤️</div><div class="fc-label">Purpose</div><div class="fc-title">Real-Time ECG Display</div><div class="fc-body">Captures live ECG signals via fingertip or gel electrodes and displays the PQRST waveform continuously on a touch-enabled LCD, updating in real time with no noticeable lag.</div></div>
+      <div class="feature-card"><div class="fc-icon">🔬</div><div class="fc-label">Key Device</div><div class="fc-title">INA351 Instrumentation Amplifier</div><div class="fc-body">Demonstrates the TI INA351A as the primary front-end device, showcasing its precision in a complete end-to-end ECG signal chain application.</div></div>
+      <div class="feature-card"><div class="fc-icon">🔋</div><div class="fc-label">Portability</div><div class="fc-title">USB Power Bank Powered</div><div class="fc-body">Fully portable, powered by a standard USB power bank. Designed for repeatable demos and transport in a custom-branded NANUK 910 hard case.</div></div>
+      <div class="feature-card"><div class="fc-icon">🖥️</div><div class="fc-label">Digital System</div><div class="fc-title">TI MSPM0 MCU + Touch LCD</div><div class="fc-body">The TI MSPM0G3507 handles ADC sampling and real-time waveform rendering. A touch display lets users switch between live electrode input and a built-in simulated ECG mode.</div></div>
+    </div>
+
+    <div class="chain">
+      <div class="chain-label">Signal Chain: End to End</div>
+      <div class="chain-nodes">
+        <div class="chain-node"><div class="cn-box">Electrodes</div><div class="cn-sub">Fingertip / Gel</div></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node"><div class="cn-box">INA351A</div><div class="cn-sub">Instr. Amp ×20</div></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node"><div class="cn-box">OPA333</div><div class="cn-sub">Gain Stage ×50</div></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node"><div class="cn-box">HPF + LPF</div><div class="cn-sub">0.6–33 Hz</div></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node"><div class="cn-box">ADC</div><div class="cn-sub">MCU @ 250 Hz</div></div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node"><div class="cn-box">LCD Display</div><div class="cn-sub">Live waveform</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PROJECT ═══ -->
+<section id="tab-project">
+  <div class="page">
+    <div class="pg-kicker">Development</div>
+    <h2 class="pg-title">From concept to system</h2>
+    <p class="pg-lead">The project evolved through simulation, breadboard validation, PCB design, and full integration, sponsored by Texas Instruments to demonstrate the INA351A in a complete, portable application.</p>
+
+    <div class="timeline">
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 1</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">The Goal</div><div class="tl-body">Design a compact ECG signal acquisition and display system sponsored by Texas Instruments. The system must capture a real ECG signal, process it through an analog front end, and display the waveform in real time on an LCD, operating as a standalone, portable demo platform built around the INA351A instrumentation amplifier.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 2</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">Component Selection</div><div class="tl-body">A weighted decision matrix evaluated key subsystems. The TI MSPM0G3507 was chosen for its TI ecosystem alignment, ultra-low power, and sufficient ADC resolution. An LCD module was selected over OLED/TFT for clarity, simple interfacing, and low cost. The INA351A was a fixed TI requirement as the primary device under demonstration.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 3</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">Signal Chain Design</div><div class="tl-body">Full ECG signal chain designed: INA351A for instrumentation amplification (gain 20), followed by an OPA333 gain stage reaching ~1000 V/V total. A passive RLD connection stabilizes body potential. The system runs on a single 3.3 V supply with a 1.65 V virtual reference (VREF) buffered by an OPA333, allowing the bipolar ECG signal to swing correctly without a negative supply rail.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 4</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">0.6–33 Hz Passband</div><div class="tl-body">Sallen-Key HPF and LPF stages were tuned experimentally using swappable through-hole components on the breadboard, enabling rapid real-time frequency testing. Final values establish a passband that removes baseline drift and high-frequency noise while preserving the PQRST complex.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 5</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">MCU + LCD Integration</div><div class="tl-body">Firmware developed for ADC sampling at ~250 Hz, real-time waveform rendering, and touchscreen control. A state machine enables navigation between the main menu, live mode, and simulated mode. ADC polling ensures each conversion completes before the sample is processed. A pause feature relieved SPI bandwidth pressure when switching screens.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 6</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">KiCad Custom PCB</div><div class="tl-body">Two PCB variants designed in KiCad: one with a 3.5 mm AUX jack for gel electrodes, one with exposed copper fingertip pads. Both use the same signal chain. Component placement follows signal flow with analog/power separation, close decoupling caps, and a full ground plane. Multiple iterations incorporated sponsor feedback. Due to fabrication timing, system validation was completed on breadboard/perfboard.</div></div></div>
+      <div class="tl-item"><div class="tl-left"><div class="tl-phase">Phase 7</div></div><div class="tl-connector"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-heading">Enclosure & Final Build</div><div class="tl-body">Two enclosures developed: an acrylic open-display platform for transparent demos, and a 3D-printed enclosure with hexagonal ventilation for a product-like form factor. A branded NANUK 910 hard case provides rugged transport with MSU and TI logos. The final system captures and displays live ECG waveforms running fully from a USB power bank.</div></div></div>
+    </div>
+
+    <hr class="rule"/>
+
+    <div class="pg-kicker">Challenges</div>
+    <h3 class="pg-title" style="font-size:1.6rem; margin-bottom:0.5rem;">Problems we solved</h3>
+    <p class="pg-lead">Six significant engineering challenges encountered and resolved over the course of development.</p>
+
+    <div class="ch-grid">
+      <div class="ch-card"><div class="ch-badge">Hardware</div><div class="ch-title">Single-Supply Bipolar Signal</div><div class="ch-body">ECG signals are bipolar but the system runs on a single 3.3 V supply. Fixed by creating a 1.65 V virtual reference (VREF) and biasing the entire signal chain around it, allowing the ECG to swing above and below VREF without clipping.</div></div>
+      <div class="ch-card"><div class="ch-badge">Hardware</div><div class="ch-title">Filter Cutoff Tuning</div><div class="ch-body">The waveform would slowly taper flat, indicating an incorrect HPF cutoff. Swappable through-hole components on the breadboard allowed rapid experimental tuning to find the correct 0.6 Hz high-pass cutoff.</div></div>
+      <div class="ch-card"><div class="ch-badge">Hardware</div><div class="ch-title">VREF Stability</div><div class="ch-body">Multiple stages drawing current from the resistor-divider VREF caused voltage drift and signal instability. Adding an OPA333 buffer to the VREF node created a stable, low-impedance reference for the full signal chain.</div></div>
+      <div class="ch-card"><div class="ch-badge">Hardware</div><div class="ch-title">Electrode Interface</div><div class="ch-body">The circuit worked with a function generator but produced unstable real-human signals. Gel electrode pads were adopted for validation; copper fingertip pads were used in the final design for portability.</div></div>
+      <div class="ch-card"><div class="ch-badge fw">Firmware</div><div class="ch-title">ADC Conversion Failures</div><div class="ch-body">No ADC values were initially displayed on the LCD. Implementing ADC polling (having the CPU wait for each conversion to complete before processing) resolved the issue and ensured reliable sample capture.</div></div>
+      <div class="ch-card"><div class="ch-badge fw">Firmware</div><div class="ch-title">Touchscreen + Waveform Conflict</div><div class="ch-body">SPI bandwidth was fully consumed by waveform rendering, blocking touchscreen inputs. A waveform pause feature freed the SPI bus to process touch events and enable proper screen navigation.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW TO USE ═══ -->
+<section id="tab-howto">
+  <div class="page">
+    <div class="howto-banner">
+      <div class="howto-banner-icon">❤️</div>
+      <div>
+        <h2>How to Use This System</h2>
+        <p>You scanned the QR code and landed here. Follow these steps to set up and operate the ECG Signal Acquisition &amp; Display System from scratch. No prior experience needed.</p>
+      </div>
+    </div>
+
+    <div class="callout warn"><div class="callout-icon">⚠️</div><div><strong>Important:</strong> This is a demonstration and educational device only. It is not a medical device and is not intended for clinical diagnosis, treatment, or medical use of any kind.</div></div>
+
+    <!-- STEP 1 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">01</div>
+        <div>
+          <div class="htu-title">Open the carry case</div>
+          <div class="htu-desc">Locate the hard shell carry case. Lay it flat on a stable surface and open the lid. Everything you need for a full demonstration is stored inside.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1G49azRxQXiezXaHlCvApsFYBM2iBBWiu&sz=w800" alt="Hard shell carry case closed" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">02</div>
+        <div>
+          <div class="htu-title">Identify what's inside</div>
+          <div class="htu-desc">When opened, you will see all components neatly stored. Confirm you can locate: the acrylic platform system, 3 ECG electrode gel pads, 2 power banks, 2 USB-A to Micro USB cables, and the electrode cable with colored connectors.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=13xltk1TKHOH21CrTBULfdZjb1GffuQ62&sz=w800" alt="Case opened showing all components" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">03</div>
+        <div>
+          <div class="htu-title">Remove the necessary components</div>
+          <div class="htu-desc">Take out the following from the case: the acrylic platform system, 3 ECG electrode gel pads, 1 power bank, 2 USB-A to Micro USB cables, and the electrode connector cable. Set them out on a flat surface.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1lEO02dDXFOkiiZy7ZeAAZIeFrRviqQ8C&sz=w800" alt="Components removed from case" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">04</div>
+        <div>
+          <div class="htu-title">Apply the electrode gel pads</div>
+          <div class="htu-desc">Peel and apply the 3 ECG electrode gel pads to the correct positions on your body as shown in the photo. Place one on your <strong>right arm</strong>, one on your <strong>left arm</strong>, and one on your <strong>right leg</strong>. Press firmly to ensure good skin contact.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1bNSwk8O7wGndcK4JOJ1W3gGHSlK9qh41&sz=w800" alt="Electrode pad placement diagram" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">05</div>
+        <div>
+          <div class="htu-title">Power on the system</div>
+          <div class="htu-desc">Insert the power bank into its 3D-printed slot on the acrylic platform. Plug in both USB-A to Micro USB cables, both USB-A ends go into the power bank: one Micro USB into the <strong>AFE board</strong>, and one Micro USB into the <strong>MCU LaunchPad</strong>. Press the button on the power bank to turn it on. The LCD will display a welcome screen confirming the system is powered up.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1UVXyFf9libyPGpW5HtSvA6JI4JbwIlTJ&sz=w800" alt="System powered on showing welcome screen" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 6 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">06</div>
+        <div>
+          <div class="htu-title">Connect the electrode cable to the AFE board</div>
+          <div class="htu-desc">Take the electrode connector cable and attach each colored clip to the corresponding electrode pad on your body using the color coding below. Then insert the male AUX connector from the cable into the female AUX input on the AFE board.</div>
+        </div>
+      </div>
+      <div class="htu-color-guide">
+        <div class="htu-color-item"><div class="htu-color-dot" style="background:#f5c518;"></div><div><strong>Yellow</strong>, Left Arm</div></div>
+        <div class="htu-color-item"><div class="htu-color-dot" style="background:#e03030;"></div><div><strong>Red</strong>, Right Arm</div></div>
+        <div class="htu-color-item"><div class="htu-color-dot" style="background:#2ecc71;"></div><div><strong>Green</strong>, Right Leg (Right Leg Drive)</div></div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1-x2eVyq8ahClCFg1bwDhQX3um4a-aQAG&sz=w800" alt="Electrode cable connected to AFE AUX input" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 7 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">07</div>
+        <div>
+          <div class="htu-title">Navigate to Live ECG mode</div>
+          <div class="htu-desc">From the welcome screen, <strong>tap the LCD screen once</strong> to enter Live mode. The screen will turn blue and display the word <strong>"LIVE"</strong> confirming you are in live mode. Use your fingernail when tapping the touchscreen for best responsiveness.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1c7T24-LUb8l788W-UUDzDUMxjWAulaw6&sz=w800" alt="LCD showing LIVE mode blue screen" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- STEP 8 -->
+    <div class="htu-step">
+      <div class="htu-step-header">
+        <div class="htu-num">08</div>
+        <div>
+          <div class="htu-title">View your live ECG signal</div>
+          <div class="htu-desc"><strong>Tap once more</strong> to begin displaying your live ECG data in real time. Your heart's electrical signal will appear as a scrolling waveform on the LCD screen. Hold still for the best signal quality. Motion creates noise artifacts.</div>
+        </div>
+      </div>
+      <div class="htu-img-wrap">
+        <img src="https://drive.google.com/thumbnail?id=1Zbr9S3YNJVRd1rRa1iccUdwoFEq5I_Ly&sz=w800" alt="Live ECG waveform on LCD screen" loading="lazy" onerror="this.style.display='none'"/>
+      </div>
+    </div>
+
+    <!-- NAVIGATION REFERENCE -->
+    <div style="border:1px solid #e5e5e5;border-radius:8px;padding:1.5rem;margin-bottom:1.2rem;background:#fff;">
+      <div class="pg-kicker" style="margin-bottom:0.8rem;">Screen Navigation Reference</div>
+      <h3 style="font-size:1rem;font-weight:700;color:#1a1a1a;margin-bottom:1.2rem;">Complete tap guide</h3>
+
+      <p style="font-size:0.875rem;font-weight:600;color:#1a1a1a;margin-bottom:0.5rem;">🔴 Live Mode</p>
+      <ol style="font-size:0.845rem;color:#555;line-height:1.9;margin-left:1.3rem;margin-bottom:1.4rem;">
+        <li>From the welcome screen, <strong>tap once</strong> → blue "LIVE" screen appears</li>
+        <li><strong>Tap once more</strong> → live ECG waveform begins displaying</li>
+        <li><strong>Press and hold at any time</strong> → returns to welcome screen</li>
+      </ol>
+
+      <p style="font-size:0.875rem;font-weight:600;color:#1a1a1a;margin-bottom:0.5rem;">⚫ Simulation Mode</p>
+      <ol style="font-size:0.845rem;color:#555;line-height:1.9;margin-left:1.3rem;margin-bottom:0;">
+        <li>From the welcome screen, <strong>double tap</strong> → red "SIMULATION" screen appears</li>
+        <li><strong>Tap once</strong> → raw simulated signal (stored on MCU)</li>
+        <li><strong>Tap once more</strong> → clean simulated signal (stored on MCU)</li>
+        <li><strong>Tap once more</strong> → loops back to "SIMULATION" screen</li>
+        <li><strong>Press and hold at any time</strong> → returns to welcome screen</li>
+      </ol>
+    </div>
+
+    <div class="callout tip"><div class="callout-icon">📍</div><div><strong>Signal quality tip:</strong> Ensure the gel electrode pads are firmly adhered to clean, dry skin. Minimize movement while viewing live data. If the signal looks noisy, check that all three electrode connections are secure at both the pad and the cable connector ends.</div></div>
+
+  </div>
+</section>
+
+<!-- ═══ GALLERY ═══ -->
+<section id="tab-gallery">
+  <div class="page">
+    <div class="pg-kicker">Gallery</div>
+    <h2 class="pg-title">Photos & Visuals</h2>
+    <p class="pg-lead">System photos, PCB renders, waveform captures, and build progress. Upload photos to Google Drive, share the link, and they'll be wired in. No file upload needed.</p>
+
+    <div class="gallery-grid">
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1QIQAFpkmEm9fWtL-PjmSFYD6qPW0N2ET&sz=w800" alt="Embedded Systems Enclosure (Live Mode)" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">Embedded Systems Enclosure (Live Mode)</div><div class="gal-desc">Custom 3D-printed embedded systems enclosure running Live ECG mode on the touch LCD display.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1f2-8RSPgNYhHExz6ft_mM7DUXmKT-LF_&sz=w800" alt="Embedded Systems Enclosure (Simulation Mode)" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">Embedded Systems Enclosure (Simulation Mode)</div><div class="gal-desc">Custom 3D-printed embedded systems enclosure running the built-in Simulated ECG mode.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1at-6um7AID4hhW1L5t4kSIsNoD2TVsMy&sz=w800" alt="Final Product: Acrylic Open Display" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">Final Product: Acrylic Open Display</div><div class="gal-desc">Flat acrylic mounting platform showing all components openly for demonstrations.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1BS_Y_WIWgQ3TT5xW7myTQVnWRZbpm4i-&sz=w800" alt="LCD: Simulated Clean Waveform" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">LCD: Simulated Clean Waveform</div><div class="gal-desc">Simulated ECG waveform after AFE signal conditioning. Clean PQRST complex on the LCD.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=15vvF0vjul2-ey2yUQVubHGs--RIYrNzD&sz=w800" alt="LCD: Simulated Raw Waveform" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">LCD: Simulated Raw Waveform</div><div class="gal-desc">Raw simulated ECG waveform displayed on the LCD screen before filtering.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=17UmQbmXn___HvacE-2ANd0QFBqKcHAQI&sz=w800" alt="Final AFE Breadboard Implementation" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">Final AFE Breadboard Implementation</div><div class="gal-desc">Analog front-end breadboard build used for signal chain validation and filter tuning.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1P2zfZF2tgsrERAu7S1IQm-Wuh8v64XEs&sz=w800" alt="PCB: AUX Input Version (3D KiCad View)" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">PCB: AUX Input Version (3D KiCad View)</div><div class="gal-desc">3D render of the AUX 3.5mm jack PCB variant from KiCad.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1K2TqARGyq2KlPMK5qBjJwLAUj6_sjMI8&sz=w800" alt="PCB: Thumbpad Version, Front (3D KiCad View)" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">PCB: Thumbpad Version, Front (3D KiCad View)</div><div class="gal-desc">3D render of the front side of the exposed copper fingertip pad PCB variant.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1428L23E5FSIaImyEd4Fk-y4Mrig9UOzA&sz=w800" alt="PCB: Thumbpad Version, Back (3D KiCad View)" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">PCB: Thumbpad Version, Back (3D KiCad View)</div><div class="gal-desc">3D render of the back side of the thumbpad PCB variant.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1LhdTJ3aTfT-d_3H_hgbUpJib4ZNDUoky&sz=w800" alt="KiCad PCB Editor: Thumbpad Version" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">KiCad PCB Editor: Thumbpad Version</div><div class="gal-desc">PCB layout view of the thumbpad board version in KiCad's PCB editor.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1QdzRJty9fR6uwfAKQATyRMJ6-LAdNM0t&sz=w800" alt="KiCad PCB Editor: AUX Input Version" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">KiCad PCB Editor: AUX Input Version</div><div class="gal-desc">PCB layout view of the AUX input board version in KiCad's PCB editor.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1M18F2k-llMD4NS898kVsncIpLoKvpaWr&sz=w800" alt="KiCad Schematic: AUX Input Version" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">KiCad Schematic: AUX Input Version</div><div class="gal-desc">Full schematic capture of the AUX input board variant in KiCad.</div></div></div>
+      <div class="gal-card"><div class="gal-img"><img src="https://drive.google.com/thumbnail?id=1jdL8ykPB0EZYz86ztPv_316ZPG9a5XX_&sz=w800" alt="KiCad Schematic: Thumbpad Version" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'gal-ph-icon\'>🖼️</div><div class=\'gal-ph-txt\'>Loading...</div>'"/></div><div class="gal-cap"><div class="gal-title">KiCad Schematic: Thumbpad Version</div><div class="gal-desc">Full schematic capture of the thumbpad board variant in KiCad.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DOCUMENTS ═══ -->
+<section id="tab-documents">
+  <div class="page">
+    <div class="pg-kicker">Documentation</div>
+    <h2 class="pg-title">Reports & Deliverables</h2>
+    <p class="pg-lead">All project documents and individual application notes from each team member. Links activate once documents are uploaded to Google Drive.</p>
+
+    <div class="doc-grid">
+      <a href="https://drive.google.com/file/d/1zgn7M_lM4R9jooenDO4zMDnlTATcq5kR/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📄</div><div><div class="doc-type">Final Report</div><div class="doc-name">ECG Acquisition System: Final Report</div><div class="doc-desc">Complete technical report: design, implementation, testing, and results. ECE 480, Group 23.</div></div></a>
+      <a href="https://drive.google.com/file/d/1LgDkxTA6crCrO-cOGEyw-A2nKnsLWLsa/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📊</div><div><div class="doc-type">Presentation</div><div class="doc-name">Final Slide Deck</div><div class="doc-desc">Design Day presentation covering system overview, signal chain, key results, and demo walkthrough.</div></div></a>
+      <a href="https://drive.google.com/file/d/1-7-sC-25QwoIFXWqeTn5bfvjRo2vgyFc/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">🗺️</div><div><div class="doc-type">Poster</div><div class="doc-name">Design Day Poster</div><div class="doc-desc">Full-size capstone poster summarizing the project for a general engineering audience.</div></div></a>
+      <a href="https://drive.google.com/file/d/1sQpOp-9nyFTpq1k7CmKW2OFtpaYJ2drx/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📋</div><div><div class="doc-type">Proposal</div><div class="doc-name">Project Proposal</div><div class="doc-desc">Original proposal defining objectives, requirements, and initial system architecture.</div></div></div></a>
+
+    <hr class="rule"/>
+    <div class="pg-kicker">Application Notes</div>
+    <h3 class="pg-title" style="font-size:1.4rem;margin-bottom:0.5rem;">Individual Application Notes</h3>
+    <p class="pg-lead" style="margin-bottom:1.8rem;">Each team member authored an individual application note detailing their specific contributions and technical work on the project.</p>
+    <div class="doc-grid">
+      <a href="https://drive.google.com/file/d/1oBvwmUQUodF424c2WtT9ziDIeSRynn9R/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📝</div><div><div class="doc-type">Application Note</div><div class="doc-name">Carter Vasicek</div><div class="doc-desc">PCB Design &amp; Power Systems</div></div></a>
+      <a href="https://drive.google.com/file/d/1sIenynZHFddNTSwpFXlCkl8uttahmgO1/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📝</div><div><div class="doc-type">Application Note</div><div class="doc-name">Mark Murray</div><div class="doc-desc">Mechanical Design &amp; Fabrication</div></div></a>
+      <a href="https://drive.google.com/file/d/1Ldf8ro3B0D1dI5ChGlDWSoXxn1uJIlIA/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📝</div><div><div class="doc-type">Application Note</div><div class="doc-name">Ojas Alate</div><div class="doc-desc">Firmware &amp; Display Integration</div></div></a>
+      <a href="https://drive.google.com/file/d/168TpLSE8BhNzmeMP3wDlZCOlLduAYvEm/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📝</div><div><div class="doc-type">Application Note (Shared)</div><div class="doc-name">Colin Lazarski</div><div class="doc-desc">Hardware &amp; Signal Chain Validation</div></div></a>
+      <a href="https://drive.google.com/file/d/168TpLSE8BhNzmeMP3wDlZCOlLduAYvEm/view?usp=sharing" target="_blank" class="doc-card"><div class="doc-thumb">📝</div><div><div class="doc-type">Application Note (Shared)</div><div class="doc-name">Pranav Deshmukh</div><div class="doc-desc">Analog Front-End Design</div></div></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TEAM ═══ -->
+<section id="tab-team">
+  <div class="page">
+    <div class="pg-kicker">Our Team</div>
+    <h2 class="pg-title">Group 23</h2>
+    <p class="pg-lead">ECE 480 Senior Capstone, Michigan State University, Spring 2026. Sponsored by Texas Instruments.</p>
+
+    <div class="team-photo-card">
+      <div class="team-photo-area" style="aspect-ratio:21/8;padding:0;background:#000;">
+        <img src="https://drive.google.com/thumbnail?id=1D3CUBpAnCZn1kmeD5AYPb-II1FhENFcp&sz=w1200" alt="ECE 480 Group 23 Team Photo" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentElement.style.background='var(--surface)';this.outerHTML='<div class=\'tph-icon\'>📸</div><div class=\'tph-txt\'>Photo loading...</div>'"/>
+      </div>
+      <div class="team-photo-caption">
+        <div>
+          <div class="tpc-title">ECE 480 Group 23: Spring 2026</div>
+          <div class="tpc-sub">Left to right: Mark Murray · Pranav Deshmukh · Colin Lazarski · Ojas Alate · Carter Vasicek</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="team-grid">
+      <div class="team-card"><div class="team-av">MM</div><div class="t-name">Mark Murray</div><div class="t-role">Mechanical Design & Fabrication</div><a href="mailto:murra373@msu.edu" class="t-email">murra373@msu.edu</a></div>
+      <div class="team-card"><div class="team-av">PD</div><div class="t-name">Pranav Deshmukh</div><div class="t-role">Analog Front-End Design</div><a href="mailto:deshmu26@msu.edu" class="t-email">deshmu26@msu.edu</a></div>
+      <div class="team-card"><div class="team-av">CL</div><div class="t-name">Colin Lazarski</div><div class="t-role">Hardware Design & Signal Chain Validation</div><a href="mailto:lazarsk9@msu.edu" class="t-email">lazarsk9@msu.edu</a></div>
+      <div class="team-card"><div class="team-av">OA</div><div class="t-name">Ojas Alate</div><div class="t-role">Firmware & Display Integration</div><a href="mailto:alateoja@msu.edu" class="t-email">alateoja@msu.edu</a></div>
+      <div class="team-card"><div class="team-av">CV</div><div class="t-name">Carter Vasicek</div><div class="t-role">PCB Design & Power System Design</div><a href="mailto:vasicekc@msu.edu" class="t-email">vasicekc@msu.edu</a></div>
+    </div>
+
+    <div class="pg-kicker" style="margin-bottom:1rem;">Sponsors & Faculty</div>
+    <div class="support-row">
+      <div class="sup-card">
+        <div class="sup-kicker">Project Sponsor · Texas Instruments</div>
+        <div style="margin-bottom:1rem;">
+          <img src="https://drive.google.com/thumbnail?id=1-aburZFHRUXmpSfJMcwprOvgVLsc48ZJ&sz=w300" alt="Texas Instruments" style="height:40px;width:auto;object-fit:contain;display:block;"/>
+        </div>
+        <div class="sup-person"><div class="sup-name">Pete Semig</div><div class="sup-title">TI Engineer / Project Sponsor</div></div>
+        <div class="sup-person"><div class="sup-name">Ashley Kang</div><div class="sup-title">TI Engineer / Project Sponsor</div></div>
+      </div>
+      <div class="sup-card">
+        <div class="sup-kicker">Project Facilitator · MSU</div>
+        <div style="margin-bottom:1rem;">
+          <img src="https://drive.google.com/thumbnail?id=1QY4jQ6DhMsqjtp3mVT_Bd-_8oZJFGPJW&sz=w300" alt="Michigan State University" style="height:40px;width:auto;object-fit:contain;display:block;"/>
+        </div>
+        <div class="sup-person"><div class="sup-name">Dr. Jian Ren</div><div class="sup-title">Project Facilitator, ECE 480</div><a href="mailto:renjian@msu.edu" class="sup-email">renjian@msu.edu</a></div>
+      </div>
+      <div class="sup-card">
+        <div class="sup-kicker">Instructor · MSU</div>
+        <div style="margin-bottom:1rem;">
+          <img src="https://drive.google.com/thumbnail?id=1QY4jQ6DhMsqjtp3mVT_Bd-_8oZJFGPJW&sz=w300" alt="Michigan State University" style="height:40px;width:auto;object-fit:contain;display:block;"/>
+        </div>
+        <div class="sup-person"><div class="sup-name">Dr. Yiming Deng</div><div class="sup-title">Course Instructor, ECE 480</div><a href="mailto:dengyimi@egr.msu.edu" class="sup-email">dengyimi@egr.msu.edu</a></div>
+        <p class="sup-note" style="margin-top:0.8rem;">Special thanks to Samone Toth for component coordination, and to the MSU Department of Computer & Electrical Engineering for their support.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-wrap">
+    <div class="foot-top">
+      <div>
+        <div class="foot-brand">ECG Signal Acquisition & Display System</div>
+        <div class="foot-sub">ECE 480 Senior Design · Group 23 · Michigan State University · Spring 2026<br>Sponsored by Texas Instruments · For demonstration and educational purposes only</div>
+      </div>
+      <div class="foot-badges" style="display:flex;gap:1rem;align-items:center;">
+        <img src="https://drive.google.com/thumbnail?id=12PIyNS9JMvBYNOqoW9aHlrDaEawJC_6h&sz=w120" alt="MSU" style="height:36px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:0.5;"/>
+        <img src="https://drive.google.com/thumbnail?id=15K8DlvLpKVfrkddYtAHHg1gZgeHY4BDS&sz=w120" alt="TI" style="height:32px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:0.5;"/>
+      </div>
+    </div>
+    <div class="foot-bottom">© 2026 ECE 480 Group 23 · Michigan State University</div>
+  </div>
+</footer>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-tabs a').forEach(a => a.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
